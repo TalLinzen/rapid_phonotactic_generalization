@@ -1,0 +1,38 @@
+<div class="trialpartWrapper" id="part1" style="text-align: left;">
+<p>
+
+Let's get started! <br><br>
+
+We're going to teach you a simple language game, where the computer says one word and then you provide a response<br><br>
+To learn the game, you'll hear both the word the computer says, and your intended response.
+Press continue to see an example<br><br>
+<%= continueButton() %>
+</p>
+</div>
+
+
+<div class="trialpartWrapper" id="part2" style="text-align: left;">
+<p>
+I say "bengif"
+<%= makeSoundButton({soundFile: "bengif.wav.mp3", soundID: "bengif"}) %>
+</p>
+</div>
+
+<div class="trialpartWrapper" id="part3" style="text-align: left;">
+<p>
+You say "benkif"
+<%= makeSoundButton({soundFile: "benkif.wav.mp3", soundID: "benkif"}) %>
+</p>
+</div>
+
+<div class="trialpartWrapper" id="part4" style="text-align: left;">
+<p>
+<br><br>Sometimes your response will be the same as what the computer says, and sometimes it will be different.
+While you are learning the game, you should repeat the intended response after you listen to it. This will help you learn.<br>
+After you have been taught to play the game, we'll test you by asking you to provide the response yourself.
+<br><br>
+Press continue to start learning the game!
+
+<%= continueButton() %>
+</p>
+</div>

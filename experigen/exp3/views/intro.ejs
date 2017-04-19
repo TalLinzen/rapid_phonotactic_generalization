@@ -1,0 +1,40 @@
+<div class="trialpartWrapper" id="part1" style="text-align: left;">
+	<big><b>Welcome! Thank you for participating in our experiment.</b></big>
+	<ol>
+		<li> To begin, put headphones on, and play the test sound.
+			<div style="margin: 20px 0px 20px 40px;">
+				<div>
+				Listen to a test word: <%= makeSoundButton({soundFile: "hello.wav.mp3", soundID: "sogon"}) %>
+				</div>
+				<div class="trialpartWrapper" id="part2" style="text-align: left;">
+					Try spelling it:
+					<%= makeTextInput({onchange: 'Experigen.screen().sogon()', allowempty: false}) %>
+					<%= continueButton("►") %>
+				</div>
+				<div class="trialpartWrapper" id="part3" style="text-align: left;">
+					<div id="feedback" style="display: inline;"></div>
+					<%= continueButton() %>
+				</div>
+			</div>
+		<li> Copy this code and paste it in your task:
+			<div class="trialpartWrapper" id="part4" style="text-align: left; margin: 0px 0px 20px 40px">
+			<big><b>Q<%= Experigen.userCode %></b></big><br><br>
+			<%= continueButton() %>
+			</div>
+		<li> Get going!
+			<div class="trialpartWrapper" id="part5" style="text-align: left; margin: 00px 0px 20px 40px">
+			<%= continueButton() %>
+			</div>
+	</ol>
+</div>
+
+<%
+	this.sogon = function() {
+		var str = $("#response0")[0].value;
+		if (str.match(/^hello/i)) {
+			$("#feedback").html("Great! You are going to listen to some words of a made-up language. You do not need to memorize the words, but you should repeat each word to yourself after listening to it. After hearing several words from the language, you will be presented with some new words and asked whether they sound like they could belong to the language you were listening to.");
+		} else {
+			$("#feedback").html("This doesn't quite match what we expected. Please try again.");
+		}
+	}
+%>

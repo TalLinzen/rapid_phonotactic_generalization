@@ -1,0 +1,16 @@
+<div class="trialpartWrapper" id="part1">
+	<p>
+	<%= makeSoundButton({soundFile: stimulus, hide: true}) %>
+	</p>
+</div>
+
+<div class="trialpartWrapper" id="part2">
+	<div style="text-align: center;">
+	<p>
+	Does this sound like it could be a word of the language you were listening to?
+	
+	<%= makeScale({direction: HORIZONTAL, buttons: ["yes", "no"], edgelabels:['',''] }) %>
+	</p>
+
+</div>
+</div>
