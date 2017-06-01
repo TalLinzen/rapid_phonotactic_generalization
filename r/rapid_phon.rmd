@@ -1,4 +1,13 @@
-# Linzen \& Gallagher: Rapid generalization in phonotactic learning
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+# Rapid generalization in phonotactic learning,
+
+Code for generating the figures in:
+Linzen \& Gallagher (2017), Rapid generalization in phonotactic learning,
+   Laboratory Phonology
 
 ```{r libraries, include=FALSE}
 library(plyr)
@@ -9,98 +18,152 @@ library(reshape)
 library(lme4)
 library(effects)
 library(rjson)
+library(knitr)
+#opts_chunk$set(dev='postscript')
+source('lmem.r')
+root <- '../'
 ```
 
 ## Experiment 1
 
-```{r load, cache=FALSE, echo=FALSE}
-lists <- list(
-    c(g='attested', b='legal', p='illegal'), 
-    c(z='attested', d='legal', t='illegal'),
-    c(D='attested', g='legal', k='illegal'),
-    c(d='attested', v='legal', f='illegal'),
-    c(v='attested', z='legal', s='illegal'),
-    c(b='attested', D='legal', T='illegal'),
-    c(k='attested', p='legal', b='illegal'),
-    c(s='attested', t='legal', d='illegal'),
-    c(T='attested', k='legal', g='illegal'),
-    c(t='attested', f='legal', v='illegal'),
-    c(f='attested', s='legal', z='illegal'),
-    c(p='attested', T='legal', D='illegal')
-)
+```{r load_exp1, cache=FALSE, echo=FALSE}
+load_exp1 <- function() {
+    lists <- list(
+        c(g='attested', b='legal', p='illegal'), 
+        c(z='attested', d='legal', t='illegal'),
+        c(D='attested', g='legal', k='illegal'),
+        c(d='attested', v='legal', f='illegal'),
+        c(v='attested', z='legal', s='illegal'),
+        c(b='attested', D='legal', T='illegal'),
+        c(k='attested', p='legal', b='illegal'),
+        c(s='attested', t='legal', d='illegal'),
+        c(T='attested', k='legal', g='illegal'),
+        c(t='attested', f='legal', v='illegal'),
+        c(f='attested', s='legal', z='illegal'),
+        c(p='attested', T='legal', D='illegal')
+    )
 
-type <- c(b='voiced_stop', d='voiced_stop', g='voiced_stop',
-          k='voiceless_stop', p='voiceless_stop', t='voiceless_stop',
-          v='voiced_fricative', D='voiced_fricative', z='voiced_fricative',
-          T='voiceless_fricative', s='voiceless_fricative', f='voiceless_fricative')
+    type <- c(b='Voiced stop', d='Voiced stop', g='Voiced stop',
+              k='Voiceless stop', p='Voiceless stop', t='Voiceless stop',
+              v='Voiced fricative', D='Voiced fricative', 
+              z='Voiced fricative', T='Voiceless fricative',
+              s='Voiceless fricative', f='Voiceless fricative')
 
-root <- '../'
-results <- read.csv(file.path(root, 'results', 'exp1.csv'),
-    stringsAsFactors=FALSE)
-results <- results[!duplicated(results),]
-results <- transform(results, subject=userCode, exposures=exposure)
-results <- subset(results, select=-c(userCode, exposure))
-results <- ddply(results, .(subject, stimulus), function(df) {
-    df$word <- strsplit(df$stimulus[1], '\\.')[[1]][1]
-    df$onset <- substr(df$word[1], 1, 1)
-    if (substr(df$word[1], 2, 2) == '_') {
-        df$onset <- toupper(df$onset) 
-    }
-    df$condition <- lists[[df$list[1]]][df$onset[1]]
-    df$legal <- names(lists[[df$list[1]]])[2]
-    df$type <- type[df$legal[1]]
-    df
-})
-results$isyes <- ifelse(results$response == 'yes', 1, 0)
-results$exposures <- factor(results$exposures)
-results$condition <- factor(results$condition, 
-    levels=c('legal', 'illegal', 'attested'))
-    
-subjects <- ddply(results, .(exposures, list, subject), head, 1)
-first_six <- unique(as.character(ddply(subjects, .(exposures, list), head, 6)$subject))
-trimmed_results <- subset(results, subject %in% first_six)
+    results <- read.csv(file.path(root, 'results', 'exp1.csv'),
+        stringsAsFactors=FALSE)
+    results <- results[!duplicated(results),]
+    results <- transform(results, subject=userCode, exposures=exposure)
+    results <- subset(results, select=-c(userCode, exposure))
+    results <- ddply(results, .(subject, stimulus), function(df) {
+        df$word <- strsplit(df$stimulus[1], '\\.')[[1]][1]
+        df$onset <- substr(df$word[1], 1, 1)
+        if (substr(df$word[1], 2, 2) == '_') {
+            df$onset <- toupper(df$onset) 
+        }
+        df$condition <- lists[[df$list[1]]][df$onset[1]]
+        df$legal <- names(lists[[df$list[1]]])[2]
+        df$type <- type[df$legal[1]]
+        df
+    })
+    results$isyes <- ifelse(results$response == 'yes', 1, 0)
+    results$exposures <- factor(results$exposures)
+    results$condition <- factor(results$condition, 
+        levels=c('legal', 'illegal', 'attested'))
+    results$att <- ifelse(results$condition == 'attested', 'att', 'unatt')
+    results$conf <- ifelse(results$condition == 'illegal', 'nonconf', 'conf')
+        
+    subjects <- ddply(results, .(exposures, list, subject), head, 1)
+    # for an obscure technical reason, subject HQF4 has the exposure
+    # trials in the results file (rather than just the test trials);
+    # excluding trials with an empty response gets rid of those
+    trimmed_results <- subset(results, response != "")
+    return(trimmed_results)
+}
+
+exp1_results <- load_exp1()
 ```
 
-```{r exp1_plot, echo=FALSE, fig.width=4, fig.height=3.4}
-dodge <- position_dodge(width=0.2)
-trimmed_results$att <- ifelse(trimmed_results$condition == 'attested', 'att', 'unatt')
-trimmed_results$conf <- ifelse(trimmed_results$condition == 'illegal', 'nonconf', 'conf')
-p <- ggplot(trimmed_results,
-    aes(x=exposures, y=isyes, color=conf, group=condition,
-        linetype=att, shape=att)) +
-        coord_cartesian(ylim=c(0.4, 1)) +
-    theme_bw(base_size=12) +
-    stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge) +
-    stat_summary(fun.y='mean', geom='line', size=0.8, position=dodge) +    
-    stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0,
-        size=0.8, position=dodge, linetype='solid') +
-    scale_shape_manual('', breaks=c('att', 'unatt'),
-        labels=c('Attested', 'Unattested'),
-        values=c(16, 15)) +
-    guides(color=guide_legend(order=1), shape=guide_legend(order=2),
-        linetype=FALSE) +
-    scale_x_discrete('Exposure sets') +
-        scale_color_grey('', 
-                           breaks=c('identical', 'arbitrary'),
-                           labels=c('Conforming', 'Nonconforming'),
-                         start=0.2, end=0.6) +
-        scale_linetype_discrete('', 
-                             breaks=c('att', 'unatt'),
-                             labels=c('Attested', 'Unattested')) +
-    scale_y_continuous('Endorsement rate', limits=c(0, 1), 
-                       breaks=c(0.4, 0.6, 0.8, 1), labels=percent) +
-    theme(panel.grid.major=element_blank(), 
-          panel.grid.minor=element_blank(),
-          legend.position='bottom',
-          legend.direction='vertical',
-          legend.box='horizontal',
-          axis.title.x=element_text(vjust=0))  
-suppressMessages(print(p))
+### Figure 1
+```{r voicing_endorsement_rates, echo=FALSE, fig.width=6, fig.height=3}
+
+voicing_endorsement_rates <- function(results) {
+    dodge <- position_dodge(width=0.2)
+    p <- ggplot(results,
+        aes(x=exposures, y=isyes, color=conf, group=condition,
+            linetype=att, shape=att)) +
+        theme_bw(base_size=12) +
+        stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge) +
+        stat_summary(fun.y='mean', geom='line', size=0.8, position=dodge) +    
+        stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0,
+            size=0.8, position=dodge, linetype='solid') +
+        scale_shape_manual('', breaks=c('att', 'unatt'),
+            labels=c('Attested', 'Unattested'),
+            values=c(16, 15)) +
+        guides(color=guide_legend(order=1), shape=guide_legend(order=2),
+            linetype=FALSE) +
+        scale_x_discrete('Exposure sets') +
+            scale_color_brewer('', 
+                breaks=c('conf', 'nonconf'),
+                palette='Set1',
+                labels=c('Conforming', 'Nonconforming')) +
+            scale_linetype_discrete('',
+                breaks=c('att', 'unatt'),
+                labels=c('Attested', 'Unattested')) +
+        scale_y_continuous('Endorsement rate', limits=c(0, 1), 
+            breaks=c(0.4, 0.6, 0.8, 1), labels=percent) +
+        coord_cartesian(ylim=c(0.3, 1)) +
+        theme(panel.grid.major=element_blank(), 
+              panel.grid.minor=element_blank(),
+              axis.title.x=element_text(vjust=0))
+    return(p)
+}
+
+voicing_endorsement_rates(exp1_results)
+```
+
+### Figure 2
+```{r voicing_by_type, echo=FALSE, cache=TRUE, fig.width=6, fig.height=5}
+voicing_by_type <- function(results) {
+    dodge <- position_dodge(width=0.3)
+    p <- ggplot(results,
+        aes(x=exposures, y=isyes, color=conf, group=condition, linetype=att,
+            shape=att)) +
+        stat_summary(fun.y='mean', geom='point', size=2.5, position=dodge) +
+        stat_summary(fun.y='mean', geom='line', size=0.7, position=dodge) +    
+        stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0.15, 
+                     size=1, position=dodge) +
+        scale_y_continuous('Endorsement rate', limits=c(0, 1), 
+                           labels=percent, breaks=c(0.4, 0.6, 0.8, 1.0)) +
+        scale_shape_manual('', breaks=c('att', 'unatt'),
+            labels=c('Attested', 'Unattested'),
+            values=c(16, 15)) +
+        theme_bw() +
+        facet_wrap('type') +
+            scale_linetype_discrete('', 
+                breaks=c('att', 'unatt'),
+                labels=c('Attested', 'Unattested')) +
+        guides(color=guide_legend(order=1), shape=guide_legend(order=2),
+            linetype=FALSE) +
+        scale_x_discrete('Exposure sets') +
+            scale_color_brewer('', 
+                breaks=c('conf', 'nonconf'),
+                palette='Set1', 
+                labels=c('Conforming', 'Nonconforming')) +
+        coord_cartesian(ylim=c(0.3, 1.1)) +
+        theme(panel.grid.major=element_blank(), 
+              panel.grid.minor=element_blank(),
+              axis.text.x=element_text(vjust=0))
+    return(p) 
+}
+
+voicing_by_type(exp1_results)
 ```
 
 ## Experiment 2a
-```{r exp2_load, cache=TRUE, echo=FALSE}
-read_conditions <- function(filename_pattern, conds) {
+
+### Figure 3
+```{r load_exp2a, cache=TRUE, echo=FALSE}
+read_conditions_exp2a <- function(filename_pattern, conds) {
     ldply(conds, function(x) {
         df <- read.csv(sprintf(filename_pattern, x), 
                        stringsAsFactors=F)
@@ -112,28 +175,36 @@ read_conditions <- function(filename_pattern, conds) {
     })
 }
 
-exp_conditions <- c(1, 2, 4, 8, 16)
-stims <- read.csv(file.path(root, 'materials', 'exp2a.csv'))
-pattern <- file.path(root, 'results', 'exp2a', '%dexp_coded.csv')
-results <- read_conditions(pattern, exp_conditions)
-results <- merge(results, stims)
-results <- arrange(results, exposures, subject, trialnumber)
-results <- transform(results, correct=as.character(attested)==as.character(response))
-results$type <- factor(results$type, levels=c('identical', 'arbitrary'))
-results$attested <- factor(results$attested, levels=c('yes', 'no'))
-results$correct <- ifelse(results$correct, 1, 0)
-results$response <- factor(results$response, levels=c('no', 'yes'))
-results$exposures <- factor(results$exposures)
-results$cond <- paste(ifelse(results$attested == 'yes', 'att', 'unatt'),
-                      ifelse(results$type == 'identical', 'ident', 'arb'))
+load_exp2a <- function() {
+    exp_conditions <- c(1, 2, 4, 8, 16)
+    stims <- read.csv(file.path(root, 'materials', 'exp2a.csv'))
+    pattern <- file.path(root, 'results', 'exp2a', '%dexp_coded.csv')
+    results <- read_conditions_exp2a(pattern, exp_conditions)
+    results <- merge(results, stims)
+    results <- arrange(results, exposures, subject, trialnumber)
+    results <- transform(results, 
+        correct=as.character(attested)==as.character(response))
+    results$type <- factor(results$type, levels=c('identical', 'arbitrary'))
+    results$attested <- factor(results$attested, levels=c('yes', 'no'))
+    results$correct <- ifelse(results$correct, 1, 0)
+    results$response <- factor(results$response, levels=c('no', 'yes'))
+    results$exposures <- factor(results$exposures)
+    results$isyes <- ifelse(results$response == 'yes', 1, 0)
+    results$cond <- paste(ifelse(results$attested == 'yes', 'att', 'unatt'),
+                          ifelse(results$type == 'identical', 'ident', 'arb'))
+    return(results)
+}
+
+exp2a_results <- load_exp2a()
 ```
 
-```{r exp2_plot, echo=FALSE, cache=TRUE, fig.height=3.4, fig.width=4}
-plot_endorsement <- function(results) {
-    results$isyes <- ifelse(results$response == 'yes', 1, 0)
+```{r identity_endorsement_rates, echo=FALSE, cache=FALSE, fig.height=3, fig.width=6}
+
+identity_endorsement_rates <- function(results) {
+
     dodge <- position_dodge(width=0.2)
-    p <- ggplot(results, aes(x=exposures, y=isyes, color=type, group=cond,
-        linetype=attested, shape=attested)) +
+    p <- ggplot(results, aes(x=exposures, y=isyes, color=type,
+        group=cond, linetype=attested, shape=attested)) +
         theme_bw(base_size=12) +
         stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge) +
         stat_summary(fun.y='mean', geom='line', size=0.8, position=dodge,
@@ -150,25 +221,25 @@ plot_endorsement <- function(results) {
         scale_linetype_discrete('', breaks=c('yes', 'no'),
                                 labels=c('Attested', 'Unattested')) +
         scale_x_discrete('Exposure sets') +
+        scale_color_brewer('', 
+            breaks=c('identical', 'arbitrary'),
+            palette='Set1', 
+            labels=c('Conforming', 'Nonconforming')) +
         theme(panel.grid.major=element_blank(), 
               panel.grid.minor=element_blank(),
               axis.title.x=element_text(vjust=0))
     return(p)
 }
 
-p <- plot_endorsement(subset(results, exposures != 16)) + 
-        coord_cartesian(ylim=c(0.4, 1)) +
-        scale_color_grey('', 
-                           breaks=c('identical', 'arbitrary'),
-                           labels=c('Conforming', 'Nonconforming'),
-                         start=0.2, end=0.6) +
-        theme(legend.position='bottom', legend.direction='vertical', legend.box='horizontal')
-suppressMessages(print(p))
+identity_endorsement_rates(subset(exp2a_results, exposures != 16))
 ```
 
 ## Experiment 2b
+
+### Figure 4
 ```{r exp2b_load, cache=FALSE, echo=FALSE}
-read_conditions <- function(filename_pattern, conds) {
+
+read_conditions_exp2b <- function(filename_pattern, conds) {
     ldply(conds, function(x) {
         df <- read.csv(sprintf(filename_pattern, x), stringsAsFactors=F)
         df$exposures <- x
@@ -179,123 +250,185 @@ read_conditions <- function(filename_pattern, conds) {
     })
 }
 
-pattern <- file.path(root, 'results', 'exp2b.csv')
-exp_conditions <- 1
-control <- read_conditions(pattern, exp_conditions)
-control$experiment <- 'Control'
-results <- control
+load_exp2b <- function() {
+    pattern <- file.path(root, 'results', 'exp2b.csv')
+    exp_conditions <- 1
+    control <- read_conditions_exp2b(pattern, exp_conditions)
+    control$experiment <- 'Control'
+    results <- control
 
-results <- arrange(results, exposures, subject, trialnumber)
-results <- transform(results, correct=as.character(attested)==as.character(response))
-results$type <- factor(results$type, levels=c('training', 'identical', 'arbitrary'))
-results$correct <- ifelse(results$correct, 1, 0)
-results$response <- factor(results$response, levels=c('no', 'yes'))
-results$exposures <- factor(results$exposures)
-results$type2 <- results$type
-results$type2 <- ifelse(
-    results$type2 == 'identical',  'identical', 'arbitrary')
-results$cond <- paste(ifelse(results$attested == 'yes', 'att', 'unatt'),
-                      ifelse(results$type == 'identical', 'ident', 'arb'))
-results$isyes <- ifelse(results$response == 'yes', 1, 0)
+    results <- arrange(results, exposures, subject, trialnumber)
+    results <- transform(results, 
+        correct=as.character(attested)==as.character(response))
+    results$type <- factor(results$type,
+        levels=c('training', 'identical', 'arbitrary'))
+    results$correct <- ifelse(results$correct, 1, 0)
+    results$response <- factor(results$response, levels=c('no', 'yes'))
+    results$exposures <- factor(results$exposures)
+    results$type2 <- results$type
+    results$type2 <- ifelse(
+        results$type2 == 'identical',  'identical', 'arbitrary')
+    results$cond <- paste(ifelse(results$attested == 'yes', 'att', 'unatt'),
+                          ifelse(results$type == 'identical', 'ident', 'arb'))
+    results$isyes <- ifelse(results$response == 'yes', 1, 0)
+    return(results)
+}
+
+exp2b_results <- load_exp2b()
 ```
 
-```{r exp2b_plot, cache=FALSE, echo=FALSE, fig.height=3, fig.width=5}
-results$isyes <- ifelse(results$response == 'yes', 1, 0)
+```{r identity_control_endorsement_rates, cache=FALSE, echo=FALSE, fig.height=3, fig.width=5}
 
-dodge <- position_dodge(width=0.5)
-p <- ggplot(results, aes(x=exposures, y=isyes, color=type2, group=type)) +
-    theme_bw(base_size=12) +
-    stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge,
-                 mapping=aes(shape=attested)) +
-    stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0, 
-                 size=0.8, position=dodge) +
-    scale_y_continuous('Endorsement rate', limits=c(0, 1), 
-                       breaks=c(0.4, 0.6, 0.8, 1), labels=percent) +
-    guides(color=guide_legend(order=1), shape=guide_legend(order=2)) +
-    scale_shape_manual('', breaks=c('yes', 'no'), 
-                         labels=c('Attested', 'Unattested'),
-                         values=c(15, 16)) +
-    coord_cartesian(ylim=c(0.3, 1)) +
-    theme(panel.grid.major=element_blank(), 
-          panel.grid.minor=element_blank(),
-          axis.title.x=element_blank(),
-          axis.text.x=element_blank(),
-          axis.ticks.x=element_blank()) 
-suppressMessages(
-    print(p + scale_color_manual('Consonants', breaks=c('identical', 'arbitrary'),
-                      labels=c('Identical', 'Arbitrary'),
-                       values=c("#333333", "#999999"))))
+identity_control_endorsement_rates <- function(results) {
+    dodge <- position_dodge(width=0.5)
+    p <- ggplot(results, aes(x=exposures, y=isyes, color=type2, group=type)) +
+        theme_bw(base_size=12) +
+        stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge,
+                     mapping=aes(shape=attested)) +
+        stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0, 
+                     size=0.8, position=dodge) +
+        scale_y_continuous('Endorsement rate', limits=c(0, 1), 
+                           breaks=c(0.4, 0.6, 0.8, 1), labels=percent) +
+        guides(color=guide_legend(order=1), shape=guide_legend(order=2)) +
+        scale_shape_manual('',
+                           breaks=c('yes', 'no'), 
+                           labels=c('Attested', 'Unattested'),
+                           values=c(15, 16)) +
+        scale_color_brewer('', 
+                           breaks=c('identical', 'arbitrary'),
+                           palette='Set1', 
+                           labels=c('Conforming', 'Nonconforming')) +
+        coord_cartesian(ylim=c(0.3, 1)) +
+        theme(panel.grid.major=element_blank(), 
+              panel.grid.minor=element_blank(),
+              axis.title.x=element_blank(),
+              axis.text.x=element_blank(),
+              axis.ticks.x=element_blank()) 
+    return(p)
+}
+              
+identity_control_endorsement_rates(exp2b_results)
 ```
 
 ## Experiment 3
 
+### Figure 5
 ```{r exp3_load, cache=FALSE, echo=FALSE}
-results <- read.csv(file.path(root, 'results', 'exp3.csv'),
-    stringsAsFactors=FALSE)
-results <- results[!duplicated(results),]
-results <- transform(results, subject=userCode, n_voiceless=exposure)
-results <- subset(results, select=-c(userCode, exposure))
-voiceless <- c('p', 't', 'k')
-results$onset <- substr(results$item, 1, 1)
-results$isyes <- ifelse(results$response == 'yes', 1, 0)
-results$n_voiceless <- factor(results$n_voiceless)
-r <- results$n_voiceless == 1
-results[results$n_voiceless == 1, 'simplelist'] <- aaply(results[results$n_voiceless == 1, 'list'], 1, function(x) do.call(paste, list(voiceless[x], voiceless[x])))
-results[results$n_voiceless == 2, 'simplelist'] <- aaply(results[results$n_voiceless == 2, 'list'], 1, function(x) do.call(paste, as.list(setdiff(voiceless, voiceless[x]))))
-results[results$n_voiceless == 0, 'simplelist'] <- 'None'
 
-decode_cond <- function(rec) {
-    if (rec$onset %in% voiceless) {
-        list_cons <- voiceless[rec$list]
-        if (rec$n_voiceless == 1 && rec$onset == list_cons || 
-                rec$n_voiceless == 2 && rec$onset != list_cons) {
-            rec$cond <- 'attested'
-            rec$attested <- 'yes'
-            rec$type <- 'conf'
+exp3_load <- function() {
+    results <- read.csv(file.path(root, 'results', 'exp3.csv'),
+        stringsAsFactors=FALSE)
+    results <- results[!duplicated(results),]
+    results <- transform(results, subject=userCode, n_voiceless=exposure)
+    results <- subset(results, select=-c(userCode, exposure))
+    voiceless <- c('p', 't', 'k')
+    results$onset <- substr(results$item, 1, 1)
+    results$isyes <- ifelse(results$response == 'yes', 1, 0)
+    results$n_voiceless <- factor(results$n_voiceless)
+    r <- results$n_voiceless == 1
+    results[results$n_voiceless == 1, 'simplelist'] <- aaply(
+        results[results$n_voiceless == 1, 'list'], 1, 
+        function(x) do.call(paste, list(voiceless[x], voiceless[x])))
+    results[results$n_voiceless == 2, 'simplelist'] <- aaply(
+        results[results$n_voiceless == 2, 'list'], 1,
+        function(x) do.call(paste, as.list(setdiff(voiceless, voiceless[x]))))
+    results[results$n_voiceless == 0, 'simplelist'] <- 'None'
+
+    decode_cond <- function(rec) {
+        if (rec$onset %in% voiceless) {
+            list_cons <- voiceless[rec$list]
+            if (rec$n_voiceless == 1 && rec$onset == list_cons || 
+                    rec$n_voiceless == 2 && rec$onset != list_cons) {
+                rec$cond <- 'attested'
+                rec$attested <- 'yes'
+                rec$type <- 'conf'
+            }
+            else {
+                rec$cond <- 'legal'
+                rec$attested <- 'no'
+                rec$type <- 'conf'
+            }
         }
         else {
-            rec$cond <- 'legal'
+            rec$cond <- 'illegal'
             rec$attested <- 'no'
-            rec$type <- 'conf'
+            rec$type <- 'nonconf'
         }
+        rec
     }
-    else {
-        rec$cond <- 'illegal'
-        rec$attested <- 'no'
-        rec$type <- 'nonconf'
-    }
-    rec
+
+    results <- adply(results, 1, decode_cond)
+    results$cond <- factor(results$cond, 
+        levels=c('legal', 'illegal', 'attested'))
+    results$voiceless_cons <- aaply(results[1 == 1, 'list'], 1, 
+        function(x) paste0('[', voiceless[x], ']'))
+    return(results)
 }
 
-results <- adply(results, 1, decode_cond)
-results$cond <- factor(results$cond, 
-    levels=c('legal', 'illegal', 'attested'))
+exp3_results <- exp3_load()
 ```
 
-```{r exp3_plot, echo=FALSE, fig.width=6, fig.height=3}
-dodge <- position_dodge(width=0.2)
-p <- ggplot(results,
-    aes(x=n_voiceless, y=isyes, color=type, group=cond, shape=attested)) +
-    theme_bw(base_size=12)+
-    stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge) + 
-    stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0,
-                 size=0.8, position=dodge) +
-    scale_x_discrete('',
-        breaks=c(0, 1, 2),
-        labels=c('Control', 'Single\nType', 'Two\nTypes')) +
-        scale_color_grey('', 
-                           breaks=c('identical', 'arbitrary'),
-                           labels=c('Conforming', 'Nonconforming'),
-                         start=0.2, end=0.6) +
-    scale_y_continuous('Endorsement rate', limits=c(0, 1), 
-                       labels=percent, breaks=c(0.4, 0.6, 0.8, 1)) +
-    guides(color=guide_legend(order=1), shape=guide_legend(order=2)) +
-    scale_shape_manual('', breaks=c('yes', 'no'), 
-                         labels=c('Attested', 'Unattested'),
-                         values=c(15, 16)) +
-    coord_cartesian(ylim=c(0.3, 1)) +
-    theme(panel.grid.major=element_blank(), 
-          panel.grid.minor=element_blank(),
-          axis.title.x=element_text(vjust=0))
-suppressMessages(print(p)) 
+```{r ltr_endorsement_rates, echo=FALSE, fig.width=6, fig.height=3}
+
+ltr_endorsement_rates <- function(results) {
+    dodge <- position_dodge(width=0.2)
+    p <- ggplot(results,
+        aes(x=n_voiceless, y=isyes, color=type, group=cond, shape=attested)) +
+        theme_bw(base_size=12)+
+        stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge) + 
+        stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0,
+                     size=0.8, position=dodge) +
+        scale_x_discrete('',
+            breaks=c(0, 1, 2),
+            labels=c('Control', 'Single\nType', 'Two\nTypes')) +
+        scale_color_brewer('', 
+            breaks=c('conf', 'nonconf'),
+            palette='Set1', 
+            labels=c('Conforming', 'Nonconforming')) +
+        scale_y_continuous('Endorsement rate', limits=c(0, 1), 
+            labels=percent, breaks=c(0.4, 0.6, 0.8, 1)) +
+        guides(color=guide_legend(order=1), shape=guide_legend(order=2)) +
+        scale_shape_manual('', breaks=c('yes', 'no'), 
+                             labels=c('Attested', 'Unattested'),
+                             values=c(15, 16)) +
+        coord_cartesian(ylim=c(0.3, 1)) +
+        theme(panel.grid.major=element_blank(), 
+              panel.grid.minor=element_blank(),
+              axis.title.x=element_text(vjust=0))
+    return(p)
+}
+
+ltr_endorsement_rates(exp3_results)
+```
+
+### Figure 6
+```{r single_type_by_exposure_consonant, echo=FALSE, fig.width=6, fig.height=3}
+
+single_type_by_exposure_consonant <- function(results) {
+    dodge <- position_dodge(width=0.3)
+    p <- ggplot(subset(results, n_voiceless==1),
+            aes(x=voiceless_cons, y=isyes, shape=attested, color=type)) +
+        theme_bw(base_size=12) +
+        scale_color_brewer('', 
+                               breaks=c('conf', 'nonconf'),
+                               palette='Set1', 
+                               labels=c('Conforming', 'Nonconforming')) +
+        scale_x_discrete('Voiceless onset in exposure') +
+        scale_y_continuous('Endorsement rate', limits=c(0, 1), 
+                           labels=percent, breaks=c(0.4, 0.6, 0.8, 1)) +
+        guides(color=guide_legend(order=1), shape=guide_legend(order=2)) +
+        scale_shape_manual('', breaks=c('yes', 'no'), 
+                             labels=c('Attested', 'Unattested'),
+                             values=c(15, 16)) +
+        coord_cartesian(ylim=c(0.3, 1)) +
+        stat_summary(fun.y='mean', geom='point', size=3.5, position=dodge) + 
+        stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0, 
+                     size=0.8, position=dodge) +
+        theme(panel.grid.major=element_blank(),
+              axis.title.x=element_text(vjust=0),
+              panel.grid.minor=element_blank())
+    return(p)
+}
+
+single_type_by_exposure_consonant(exp3_results)
 ```
