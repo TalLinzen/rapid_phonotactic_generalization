@@ -22,6 +22,7 @@ library(knitr)
 #opts_chunk$set(dev='postscript')
 source('lmem.r')
 root <- '../'
+options(scipen=999, digits=3)
 ```
 
 ## Experiment 1
@@ -49,6 +50,16 @@ load_exp1 <- function() {
               z='Voiced fricative', T='Voiceless fricative',
               s='Voiceless fricative', f='Voiceless fricative')
 
+    voicing <- c(b='voiced', d='voiced', g='voiced',
+                 k='voiceless', p='voiceless', t='voiceless',
+                 v='voiced', D='voiced', z='voiced',
+                 T='voiceless', s='voiceless', f='voiceless')
+
+    manner <- c(b='stop', d='stop', g='stop',
+                k='stop', p='stop', t='stop',
+                v='fricative', D='fricative', z='fricative',
+                T='fricative', s='fricative', f='fricative')
+
     results <- read.csv(file.path(root, 'results', 'exp1.csv'),
         stringsAsFactors=FALSE)
     results <- results[!duplicated(results),]
@@ -63,6 +74,8 @@ load_exp1 <- function() {
         df$condition <- lists[[df$list[1]]][df$onset[1]]
         df$legal <- names(lists[[df$list[1]]])[2]
         df$type <- type[df$legal[1]]
+        df$voicing <- voicing[df$legal[1]]
+        df$manner <- manner[df$legal[1]]
         df
     })
     results$isyes <- ifelse(results$response == 'yes', 1, 0)
@@ -129,7 +142,7 @@ voicing_by_type <- function(results) {
         aes(x=exposures, y=isyes, color=conf, group=condition, linetype=att,
             shape=att)) +
         stat_summary(fun.y='mean', geom='point', size=2.5, position=dodge) +
-        stat_summary(fun.y='mean', geom='line', size=0.7, position=dodge) +    
+        stat_summary(fun.y='mean', geom='line', size=0.7, position=dodge) +
         stat_summary(fun.data='mean_cl_boot', geom='errorbar', width=0.15, 
                      size=1, position=dodge) +
         scale_y_continuous('Endorsement rate', limits=c(0, 1), 
@@ -157,6 +170,54 @@ voicing_by_type <- function(results) {
 }
 
 voicing_by_type(exp1_results)
+```
+
+"Omnibus" ANOVA:
+```{r exp1_omnibus_anova, cache=TRUE}
+lmer_anova(exp1_results, fit_logistic, 'isyes', c('exposures', 'condition'),
+           subject_slopes=c('condition'))
+```
+
+CONF-ATT vs CONF-UNATT:
+```{r exp1_no_illegal, cache=TRUE}
+lmer_anova(subset(exp1_results, condition != 'illegal'), fit_logistic,
+           'isyes', c('exposures', 'condition'),
+           subject_slopes=c('condition'))
+```
+
+Simple effects:
+```{r exp1_no_illegal_simple_effects, cache=TRUE}
+simple_effects(subset(exp1_results, (condition != 'illegal')), fit_logistic,
+               'exposures', 'isyes', c('condition'),
+               subject_slopes=c('condition'), null_bayes_factor=TRUE)   
+```
+
+CONF-UNATT vs NONCONF-UNATT:
+```{r exp1_no_attested, cache=TRUE}
+lmer_anova(subset(exp1_results, condition != 'attested'), fit_logistic,
+           'isyes', c('exposures', 'condition'),
+           subject_slopes=c('condition'))
+```
+
+Simple effects:
+```{r exp1_no_attested_simple_effects, cache=TRUE}
+simple_effects(subset(exp1_results, condition != 'attested'), fit_logistic,
+               'exposures', 'isyes', c('condition'),
+               subject_slopes=c('condition'))   
+```
+
+Voicing:
+```{r exp1_voicing, cache=TRUE}
+simple_effects(subset(exp1_results, condition != 'illegal'),  fit_logistic,
+           'exposures', 'isyes', c('voicing', 'condition'),
+           subject_slopes=c('condition'))
+```
+
+Manner:
+```{r exp1_manner, cache=TRUE}
+simple_effects(subset(exp1_results, condition != 'illegal'), fit_logistic,
+           'exposures', 'isyes', c('manner', 'condition'),
+           subject_slopes=c('condition'))
 ```
 
 ## Experiment 2a
@@ -234,6 +295,37 @@ identity_endorsement_rates <- function(results) {
 identity_endorsement_rates(subset(exp2a_results, exposures != 16))
 ```
 
+### Statistical analysis
+
+```{r exp2_full_anova, cache=TRUE}
+no16 <- subset(exp2a_results, exposures != 16)
+lmer_anova(no16, fit_logistic, 'isyes', c('type', 'attested'),
+           subject_slopes=c('type', 'attested', 'type:attested'),
+           item_var='consonant')
+```
+
+Simple effects:
+```{r exp2_simple effects, cache=TRUE}
+simple_effects(exp2a_results, fit_logistic, 'exposures', 'isyes',
+               c('type', 'attested'), 
+               subject_slopes=c('type', 'attested', 'type:attested'),
+               item_var='consonant', null_bayes_factor=TRUE)
+```
+
+Simple effects within attested items:
+```{r exp2_simple_effects_attested, cache=TRUE}
+simple_effects(subset(exp2a_results, attested == 'yes'), fit_logistic,
+               'exposures', 'isyes', c('type'), subject_slopes=c('type'),
+               item_var='consonant')
+```
+
+Simple effects within unattested items:
+```{r exp2_simple_effects_only_unattested}
+simple_effects(subset(exp2a_results, attested == 'no'), fit_logistic,
+               'exposures', 'isyes', c('type'),
+               subject_slopes=c('type'), item_var='consonant')
+```
+
 ## Experiment 2b
 
 ### Figure 4
@@ -308,6 +400,35 @@ identity_control_endorsement_rates <- function(results) {
 }
               
 identity_control_endorsement_rates(exp2b_results)
+```
+
+### Statistical analysis
+
+```{r exp2b_analysis, cache=TRUE}
+base <- glmer(response ~ 1 + (1 + type | subject) + (1 | consonant),
+              control=glmerControl(optimizer="bobyqa"),
+              family=binomial, data=exp2b_results)
+with_type <- update(base, . ~ type + .)
+anova(base, with_type)
+```
+
+Without attested:
+```{r exp2_without_attested, cache=TRUE}
+no_attested <- subset(exp2b_results, attested == 'no')
+base <- glmer(response ~ 1 + (1 + type | subject) + (1 | consonant),
+              control=glmerControl(optimizer="bobyqa"),
+              family=binomial, data=no_attested)
+with_type <- update(base, . ~ type + .)
+anova(base, with_type)
+```
+
+Averaging the two unattested categories:
+```{r exp2_averaging_unattested, cache=TRUE}
+base <- glmer(response ~ 1 + (1 + attested | subject) + (1 | consonant),
+              control=glmerControl(optimizer="bobyqa"),
+              family=binomial, data=exp2b_results)
+with_attested <- update(base, . ~ attested + .)
+anova(base, with_attested)
 ```
 
 ## Experiment 3
@@ -432,3 +553,27 @@ single_type_by_exposure_consonant <- function(results) {
 
 single_type_by_exposure_consonant(exp3_results)
 ```
+
+## Statistical analysis
+
+Factorial, without CONF-ATT:
+```{r exp3_factorial_without_conf_att, cache=TRUE}
+lmer_anova_maybecorrel(subset(exp3_results, cond != 'attested'), fit_logistic,
+                       'isyes', c('cond', 'n_voiceless'),
+                       subject_slopes=c(), item_var='onset')
+```
+
+Factorial, without Control language:
+```{r exp3_factorial_without_control, cache=TRUE}
+lmer_anova_maybecorrel(subset(exp3_results, n_voiceless != 0), fit_logistic,
+                       'isyes', c('cond', 'n_voiceless'),
+                       subject_slopes=c(), item_var='onset')
+```
+
+List effects:
+```{r exp3_list_effects, cache=TRUE}
+lmer_anova_maybecorrel(subset(exp3_results, n_voiceless == 1), fit_logistic,
+                       'isyes', c('cond', 'list'),
+                       subject_slopes=c(), item_var='onset')
+```
+
