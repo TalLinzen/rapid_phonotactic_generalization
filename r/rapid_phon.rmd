@@ -1,7 +1,5 @@
 ---
-output:
-  html_document: default
-  pdf_document: default
+output: github_document
 ---
 # Rapid generalization in phonotactic learning,
 

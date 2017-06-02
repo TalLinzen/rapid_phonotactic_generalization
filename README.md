@@ -3,5 +3,7 @@ Data and code for Linzen &amp; Gallagher, ["Rapid generalization in phonotactic 
 
 The `experigen` directory contains the scripts used to run the experiments, all based on [experigen](https://github.com/tlozoot/experigen) with minor modifications. All of the sound files we used as stimuli are included in the directory, for example in `experigen/exp1/resources/sounds` for Experiment 1. If you use experigen in your work, please cite it, as follows:
 
+The code used to generate the figures and run the statistical model reported in the paper is in `r/rapid_phon.rmd`; the output of the code is in `r/rapid_phon.md`.
+
 Becker, Michael and Jonathan Levine (2014) *Experigen – an online experiment*
 platform. Available at http://becker.phonologist.org/experigen.
